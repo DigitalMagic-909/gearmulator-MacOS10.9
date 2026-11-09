@@ -48,6 +48,15 @@ namespace synthLib::diag
 		std::atomic<float> devicePeak{0.0f};
 		std::atomic<float> hostPeak{0.0f};
 		std::atomic<float> masterVolume{-99.0f};
+
+		// what the VST3 wrapper hands to the host
+		std::atomic<int> vstNumOutputs{-1};
+		std::atomic<int> vstOutChannels{-1};
+		std::atomic<int> vstOutHostActive{-1};
+		std::atomic<int> vstOutSilenceFlags{-1};
+		std::atomic<int> vstOutSilenceFlagsIn{-1};
+		std::atomic<int> vstSample64{-1};
+		std::atomic<float> vstOutPeak{0.0f};
 	};
 
 	inline State& state()
@@ -99,7 +108,10 @@ namespace synthLib::diag
 			<< " | peaks (last 2 s): board=" << s.boardPeak.exchange(0.0f)
 			<< " device=" << s.devicePeak.exchange(0.0f)
 			<< " output=" << s.hostPeak.exchange(0.0f)
-			<< " | master volume=" << s.masterVolume.load();
+			<< " | master volume=" << s.masterVolume.load()
+			<< " || VST3: outputs=" << s.vstNumOutputs.load() << " channels=" << s.vstOutChannels.load()
+			<< " hostActive=" << s.vstOutHostActive.load() << " silenceFlags from host=" << s.vstOutSilenceFlagsIn.load() << " sent=" << s.vstOutSilenceFlags.load()
+			<< " 64bit=" << s.vstSample64.load() << " peak to host=" << s.vstOutPeak.exchange(0.0f);
 		writeLine(ss.str());
 	}
 
