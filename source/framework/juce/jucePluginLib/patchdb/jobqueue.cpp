@@ -1,6 +1,6 @@
 #include "jobqueue.h"
 
-#include <shared_mutex>
+#include "baseLib/sharedMutex.h"	// MAC-LEGACY: std::shared_mutex, or a replacement before macOS 10.12
 
 #include "dsp56kBase/threadtools.h"
 

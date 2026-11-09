@@ -2,7 +2,7 @@
 
 #include <functional>
 #include <string>
-#include <shared_mutex>
+#include "baseLib/sharedMutex.h"	// MAC-LEGACY: std::shared_mutex, or a replacement before macOS 10.12
 
 #include "datasource.h"
 #include "tags.h"
@@ -48,7 +48,7 @@ namespace pluginLib::patchDB
 
 		SearchResult results;
 
-		mutable std::shared_mutex resultsMutex;
+		mutable baseLib::SharedMutex resultsMutex;
 
 		SearchState state = SearchState::NotStarted;
 

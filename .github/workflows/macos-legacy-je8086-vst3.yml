@@ -1,0 +1,81 @@
+name: JE-8086 VST3 for OS X 10.9 (Intel)
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  vst3:
+    runs-on: macos-15-intel
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "10.9"   # also for JUCE's juceaide helper, built in its own CMake run
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Patch the DSP library for OS X 10.9
+        run: git -C source/cpu/dsp56300 apply ../../../packaging/macos-legacy/dsp56300-macos-legacy.patch
+
+      - name: Select newest Xcode 16
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_16*.app | sort -V | tail -1)
+          echo "Using $XCODE"
+          sudo xcode-select -s "$XCODE"
+
+      - name: Install Ninja
+        run: brew install ninja || true
+
+      - name: Configure
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=10.9 -DCMAKE_OSX_ARCHITECTURES=x86_64 -DTUS_X64_MARCH=ivybridge \
+            -Dgearmulator_BUILD_JUCEPLUGIN=ON \
+            -Dgearmulator_BUILD_JUCEPLUGIN_VST3=ON -Dgearmulator_BUILD_JUCEPLUGIN_VST2=OFF \
+            -Dgearmulator_BUILD_JUCEPLUGIN_CLAP=OFF -Dgearmulator_BUILD_JUCEPLUGIN_AU=OFF \
+            -Dgearmulator_BUILD_JUCEPLUGIN_LV2=OFF -Dgearmulator_BUILD_JUCEPLUGIN_Standalone=OFF \
+            -Dgearmulator_BUILD_FX_PLUGIN=OFF \
+            -Dgearmulator_SYNTH_OSIRUS=OFF -Dgearmulator_SYNTH_OSTIRUS=OFF -Dgearmulator_SYNTH_VAVRA=OFF \
+            -Dgearmulator_SYNTH_XENIA=OFF -Dgearmulator_SYNTH_NODALRED2X=OFF -Dgearmulator_SYNTH_88EMU=OFF \
+            -Dgearmulator_COMPONENT_DSPBRIDGE=OFF -DBUILD_TESTING=OFF \
+            -DCMAKE_EXE_LINKER_FLAGS="-Wl,-ld_classic" \
+            -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-ld_classic" \
+            -DCMAKE_MODULE_LINKER_FLAGS="-Wl,-ld_classic"
+
+      - name: Build
+        run: |
+          set -o pipefail
+          cmake --build build --target jeJucePlugin_VST3 -- -k 0 2>&1 | tee build.log
+
+      - name: Compile errors (if any)
+        if: failure()
+        run: |
+          grep -E "error:" build.log | sort -u | head -80
+          grep -B2 -A12 "Undefined symbols" build.log | head -60 || true
+
+      - name: Check against the OS X 10.9 SDK
+        run: |
+          VST=$(find build bin -name "*.vst3" -type d -path "*JE8086*" 2>/dev/null | head -1)
+          echo "VST=$VST" >> $GITHUB_ENV
+          find "$VST" -type f | head
+          BIN=$(find "$VST/Contents/MacOS" -type f | head -1)
+          lipo -info "$BIN"
+          otool -l "$BIN" | grep -A4 -E "LC_VERSION_MIN_MACOSX|LC_BUILD_VERSION"
+          for URL in https://github.com/phracker/MacOSX-SDKs/releases/download/11.3/MacOSX10.9.sdk.tar.xz \
+                     https://github.com/phracker/MacOSX-SDKs/releases/download/10.15/MacOSX10.9.sdk.tar.xz; do
+            curl -fsSL "$URL" -o sdk.tar.xz && break
+          done
+          mkdir -p oldsdk && tar -xJf sdk.tar.xz -C oldsdk
+          python3 packaging/macos-legacy/check_against_sdk.py oldsdk/MacOSX10.9.sdk "$BIN"
+
+      - name: Package
+        run: |
+          mkdir -p dist/JE8086-VST3-macOS10.9
+          cp -R "$VST" dist/JE8086-VST3-macOS10.9/
+          cp packaging/macos-legacy/LEESMIJ-JE8086-VST3.txt dist/JE8086-VST3-macOS10.9/LEESMIJ.txt
+          cd dist && ditto -c -k --keepParent JE8086-VST3-macOS10.9 ../JE8086-VST3-macOS10.9.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: JE8086-VST3-macOS10.9
+          path: JE8086-VST3-macOS10.9.zip

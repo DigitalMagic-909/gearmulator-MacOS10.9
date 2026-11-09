@@ -110,7 +110,7 @@ add_subdirectory(doc)
 
 # MAC-LEGACY: aligned new/delete replacements into each binary (see above)
 if(TUS_LEGACY_ALIGNED_NEW)
-	foreach(t JE8086TestConsole)
+	foreach(t JE8086TestConsole jeJucePlugin_VST3 jeJucePlugin_AU jeJucePlugin_Standalone)
 		if(TARGET ${t})
 			target_sources(${t} PRIVATE ${TUS_LEGACY_ALIGNED_NEW})
 		endif()

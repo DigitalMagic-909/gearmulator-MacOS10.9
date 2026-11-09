@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <functional>
 #include <mutex>
-#include <shared_mutex>
+#include "baseLib/sharedMutex.h"	// MAC-LEGACY: std::shared_mutex, or a replacement before macOS 10.12
 #include <vector>
 
 #include "synthLib/midiTypes.h"
@@ -91,7 +91,7 @@ namespace pluginLib
 		std::array<PartState, MaxParts> m_partStates{};
 
 		// held shared while the handler is called, exclusively to replace it
-		std::shared_mutex m_handlerMutex;
+		baseLib::SharedMutex m_handlerMutex;
 		Handler* m_handler = nullptr;
 
 		std::mutex m_holdMutex;

@@ -1,0 +1,29 @@
+JE-8086 VST3 voor oudere Intel-Macs (OS X 10.9 Mavericks en nieuwer)
+=====================================================================
+
+TESTVERSIE - gebouwd voor een Mac mini eind 2012 (i7, Ivy Bridge) en Cubase 7.5.
+De officiele versie van The Usual Suspects vraagt minimaal macOS 10.12/10.13; deze is
+aangepast voor 10.9 (zie de fork DigitalMagic-909/gearmulator-MacOS10.9).
+
+1. Installeren
+   Kopieer JE8086.vst3 naar:   /Library/Audio/Plug-Ins/VST3/
+   Haal daarna de quarantaine-vlag weg, in Terminal:
+     sudo xattr -dr com.apple.quarantine "/Library/Audio/Plug-Ins/VST3/JE8086.vst3"
+
+2. ROM
+   Zet de acht JP-8000 update-bestanden (.mid) of je .bin-dump in:
+     ~/Documents/The Usual Suspects/JE8086/roms/
+   (De map wordt aangemaakt zodra de plugin voor het eerst laadt. Vindt de plugin
+   geen ROM, dan toont hij zelf de juiste map.)
+
+3. Cubase
+   Start Cubase en laat het de plugins opnieuw scannen. JE8086 staat bij de
+   instrumenten. Het opstarten van de emulator duurt een paar seconden.
+
+4. Snelheid
+   De snelheidstest gaf op de Mac mini 166% van realtime. Tips voor marge:
+   project op 44,1 of 48 kHz, buffer 512 of 1024 samples, ASIO-Guard aan.
+
+Broncode: https://github.com/dsp56300/gearmulator (GPL-3.0), aangepast voor OS X 10.9 /
+x86_64. Roland en JP-8000 zijn handelsmerken van Roland Corporation; dit project is niet
+verbonden aan Roland.

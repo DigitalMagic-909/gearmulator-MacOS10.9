@@ -4,7 +4,7 @@
 #include <functional>
 #include <map>
 #include <list>
-#include <shared_mutex>
+#include "baseLib/sharedMutex.h"	// MAC-LEGACY: std::shared_mutex, or a replacement before macOS 10.12
 
 #include "patch.h"
 #include "patchdbtypes.h"
@@ -198,16 +198,16 @@ namespace pluginLib::patchDB
 		Dirty m_dirty;
 
 		// data
-		std::shared_mutex m_dataSourcesMutex;
+		baseLib::SharedMutex m_dataSourcesMutex;
 		std::map<DataSource, DataSourceNodePtr> m_dataSources;	// we need a key to find duplicates, but at the same time we need pointers to do the parent relation
 
-		mutable std::shared_mutex m_patchesMutex;
+		mutable baseLib::SharedMutex m_patchesMutex;
 		std::unordered_map<TagType, std::set<Tag>> m_tags;
 		std::unordered_map<TagType, std::unordered_map<Tag, uint32_t>> m_tagColors;
 		std::map<PatchKey, PatchModificationsPtr> m_patchModifications;
 
 		// search
-		std::shared_mutex m_searchesMutex;
+		baseLib::SharedMutex m_searchesMutex;
 		std::unordered_map<uint32_t, std::shared_ptr<Search>> m_searches;
 		std::unordered_set<SearchHandle> m_cancelledSearches;
 		uint32_t m_nextSearchHandle = 0;

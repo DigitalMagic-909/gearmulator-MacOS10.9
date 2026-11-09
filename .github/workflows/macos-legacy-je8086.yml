@@ -1,8 +1,11 @@
 name: JE-8086 for OS X 10.9 (Intel)
 
 on:
-  push:
   workflow_dispatch:
+  push:
+    paths:
+      - 'packaging/macos-legacy/test-snelheid-je8086.command'
+      - '.github/workflows/macos-legacy-je8086.yml'
 
 jobs:
   speedtest:
