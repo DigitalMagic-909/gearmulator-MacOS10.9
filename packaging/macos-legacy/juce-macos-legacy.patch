@@ -1,0 +1,20 @@
+diff --git a/modules/juce_opengl/native/juce_OpenGL_mac.h b/modules/juce_opengl/native/juce_OpenGL_mac.h
+index fb614ca..7f89f7c 100644
+--- a/modules/juce_opengl/native/juce_OpenGL_mac.h
++++ b/modules/juce_opengl/native/juce_OpenGL_mac.h
+@@ -86,9 +86,15 @@ public:
+                     return NSOpenGLProfileVersion3_2Core;
+ 
+                 if (version != defaultGLVersion)
++                {
+                     if (@available (macOS 10.10, *))
+                         return NSOpenGLProfileVersion4_1Core;
+ 
++                    // MAC-LEGACY: before 10.10 the 4.1 profile constant does not exist, but the 3.2 core profile
++                    // gives the highest core version the driver supports (4.1 on most GPUs of that era)
++                    return NSOpenGLProfileVersion3_2Core;
++                }
++
+                 return NSOpenGLProfileVersionLegacy;
+             }(),
+             NSOpenGLPFADoubleBuffer,

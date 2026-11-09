@@ -17,6 +17,9 @@ jobs:
       - name: Patch the DSP library for OS X 10.9
         run: git -C source/cpu/dsp56300 apply ../../../packaging/macos-legacy/dsp56300-macos-legacy.patch
 
+      - name: Patch JUCE for OS X 10.9 (OpenGL core profile)
+        run: git -C source/3rdparty/JUCE apply ../../../packaging/macos-legacy/juce-macos-legacy.patch
+
       - name: Select newest Xcode 16
         run: |
           XCODE=$(ls -d /Applications/Xcode_16*.app | sort -V | tail -1)

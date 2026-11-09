@@ -308,10 +308,23 @@ namespace juceRmlUi
 		GLint maxSize = 0;
 		glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxSize);
 
+		// MAC-LEGACY: the GL3 renderer can fail to build its shaders, for example when the context is not a core
+		// profile. Use it only when it was constructed successfully, otherwise fall back to the GL2 renderer.
+		std::unique_ptr<RenderInterface_GL3> gl3Renderer;
 		if (version >= static_cast<int>(g_advancedRendererMinimumGLversion) && version < 60)
 		{
+			gl3Renderer.reset(new RenderInterface_GL3(m_coreInstance));
+			if (!*gl3Renderer)
+			{
+				Rml::Log::Message(Rml::Log::LT_WARNING, "OpenGL 3 renderer failed to initialize, falling back to OpenGL 2 renderer");
+				gl3Renderer.reset();
+			}
+		}
+
+		if (gl3Renderer)
+		{
 			Rml::Log::Message(Rml::Log::LT_INFO, "Using OpenGL 3 renderer for RmlUi, version detected: %d.%d", major, minor);
-			m_renderInterface.reset(new RenderInterface_GL3(m_coreInstance));
+			m_renderInterface = std::move(gl3Renderer);
 			m_renderType = Renderer::Gl3;
 
 			if (!haveCustomFPS)
@@ -343,7 +356,7 @@ namespace juceRmlUi
 			m_renderType = Renderer::Gl2;
 		}
 
-		m_openGLversion = version;
+		m_openGLversion = m_renderType == Renderer::Gl3 ? static_cast<uint32_t>(version) : 20u;
 
 		m_renderProxy->setRenderer(m_renderInterface.get(), m_renderType == Renderer::Gl3 ? g_renderConfigGL3 : g_renderConfigGL2);
 		onRendererChanged();
