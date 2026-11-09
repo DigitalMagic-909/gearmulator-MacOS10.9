@@ -10,7 +10,9 @@ echo "  JE-8086 - snelheidstest"
 echo "=============================================="
 echo
 
-if ! ls *.bin *.BIN *.mid *.MID >/dev/null 2>&1; then
+# any .bin or .mid file, in any letter case (ls with several patterns fails as soon as one of them matches
+# nothing, which is why the first version reported a missing ROM next to eight .mid files)
+if ! ls -1 | grep -iqE '\.(bin|mid)$'; then
     echo "Geen ROM gevonden (.bin of .mid-bestanden van de JP-8000/JP-8080)."
     echo "Zet ze in deze map:"
     echo "  $(pwd)"
