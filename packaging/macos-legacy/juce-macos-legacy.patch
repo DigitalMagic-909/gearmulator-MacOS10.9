@@ -1,5 +1,5 @@
 diff --git a/modules/juce_audio_plugin_client/juce_audio_plugin_client_VST3.cpp b/modules/juce_audio_plugin_client/juce_audio_plugin_client_VST3.cpp
-index 68ddb8f..633495b 100644
+index 68ddb8f..47fbec9 100644
 --- a/modules/juce_audio_plugin_client/juce_audio_plugin_client_VST3.cpp
 +++ b/modules/juce_audio_plugin_client/juce_audio_plugin_client_VST3.cpp
 @@ -103,6 +103,13 @@ JUCE_BEGIN_NO_SANITIZE ("vptr")
@@ -16,7 +16,22 @@ index 68ddb8f..633495b 100644
  namespace juce
  {
  
-@@ -3255,6 +3262,8 @@ public:
+@@ -1391,7 +1398,14 @@ public:
+ 
+             if (details.latencyChanged && latencySamples != lastLatencySamples)
+             {
++               #if JUCE_MAC && defined (__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__) && __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 101200
++                // MAC-LEGACY: Cubase 7.5 silences an instrument's output after kLatencyChanged arrives right after
++                // it was inserted (the plugin then played only after saving and reopening the project). The host
++                // asks getLatencySamples() itself whenever it activates the plugin, so leave the restart out.
++                TUS_DIAG ("latency changed to " << latencySamples << ", kLatencyChanged NOT sent to the host");
++               #else
+                 flags |= Vst::kLatencyChanged;
++               #endif
+                 lastLatencySamples = latencySamples;
+             }
+         }
+@@ -3255,6 +3269,8 @@ public:
      {
          const FLStudioDIYSpecificationEnforcementLock lock (flStudioDIYSpecificationEnforcementMutex);
  
@@ -25,7 +40,7 @@ index 68ddb8f..633495b 100644
          // The host is misbehaving! The plugin must be deactivated before setting new arrangements.
          jassert (! active);
  
-@@ -3679,6 +3688,40 @@ public:
+@@ -3679,6 +3695,40 @@ public:
              if      (processSetup.symbolicSampleSize == Vst::kSample32) processAudio<float>  (data);
              else if (processSetup.symbolicSampleSize == Vst::kSample64) processAudio<double> (data);
              else jassertfalse;
