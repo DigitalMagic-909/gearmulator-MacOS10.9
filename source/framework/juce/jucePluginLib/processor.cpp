@@ -69,7 +69,7 @@ namespace pluginLib
 			baseLib::filesystem::getDirectoryEntries(entries, getPublicRomFolder());
 			for (const auto& e : entries)
 				h << "\n  " << e << "  (" << baseLib::filesystem::getFileSize(e) << " bytes)";
-			synthLib::diag::start(getDataFolder() + "diagnose.txt", h.str());
+			synthLib::diag::start(getDataFolder(), h.str());
 		}
 #endif
 	}
@@ -1067,7 +1067,7 @@ namespace pluginLib
 #endif
 		getPlugin().process(inputs, outputs, numSamples, bpm, ppqPos, isPlaying, hasPpqPosition, loop);
 #ifdef TUS_MAC_LEGACY_DIAG
-		for (size_t o = 0; o < 2 && o < outputs.size(); ++o)
+		for (size_t o = 0; synthLib::diag::enabled() && o < 2 && o < outputs.size(); ++o)
 		{
 			if (!outputs[o])
 				continue;
@@ -1096,7 +1096,7 @@ namespace pluginLib
 		}
 
 #ifdef TUS_MAC_LEGACY_DIAG
-		for (int c = 0; c < totalNumOutputChannels; ++c)
+		for (int c = 0; synthLib::diag::enabled() && c < totalNumOutputChannels; ++c)
 		{
 			const auto* r = buffer.getReadPointer(c);
 			for (int i = 0; i < numSamples; ++i)

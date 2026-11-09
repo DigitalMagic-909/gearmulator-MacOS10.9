@@ -226,6 +226,7 @@ namespace jeLib
 		const auto* frames = m_thread->process(static_cast<uint32_t>(_samples), getExtraLatencySamples(), m_midiIn, m_midiOut, input);
 
 #ifdef TUS_MAC_LEGACY_DIAG
+		if (synthLib::diag::enabled())
 		{
 			auto& d = synthLib::diag::state();
 			d.boardBlocks.fetch_add(1, std::memory_order_relaxed);

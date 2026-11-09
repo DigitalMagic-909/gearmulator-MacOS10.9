@@ -1,8 +1,10 @@
 #pragma once
 
-// MAC-LEGACY: diagnostics for builds that target OS X 10.9 - 10.11. They write a small text file next to the
-// plugin's ROM folder (diagnose.txt) that tells whether the device was created, whether the host calls the plugin,
-// whether MIDI arrives and how loud the board, the device and the host output are. Compiled out everywhere else.
+// MAC-LEGACY: diagnostics for builds that target OS X 10.9 - 10.11, compiled out everywhere else.
+// Off unless the user puts an empty file named diagnose-aan.txt in the plugin's data folder
+// (~/Documents/The Usual Suspects/<product>/). Then the plugin writes diagnose.txt there: whether the device was
+// created, whether the host calls the plugin, whether MIDI arrives and how loud the board, the device, the plugin
+// output and the buffer handed to the host are. No patch, parameter or note contents.
 
 #if defined(__APPLE__) && defined(__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__) && __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 101200
 #define TUS_MAC_LEGACY_DIAG 1
@@ -29,6 +31,7 @@ namespace synthLib::diag
 		std::mutex mutex;
 		std::string file;
 		bool reporterStarted = false;
+		std::atomic<bool> enabled{false};
 
 		std::atomic<uint64_t> blocks{0};
 		std::atomic<uint64_t> samples{0};
@@ -53,7 +56,6 @@ namespace synthLib::diag
 		std::atomic<int> vstNumOutputs{-1};
 		std::atomic<int> vstOutChannels{-1};
 		std::atomic<int> vstOutHostActive{-1};
-		std::atomic<int> vstOutSilenceFlags{-1};
 		std::atomic<int> vstOutSilenceFlagsIn{-1};
 		std::atomic<int> vstSample64{-1};
 		std::atomic<float> vstOutPeak{0.0f};
@@ -63,6 +65,12 @@ namespace synthLib::diag
 	{
 		static State s;
 		return s;
+	}
+
+	// cheap check for the hot paths, false unless start() found the switch file
+	inline bool enabled()
+	{
+		return state().enabled.load(std::memory_order_relaxed);
 	}
 
 	inline std::string now()
@@ -110,13 +118,14 @@ namespace synthLib::diag
 			<< " output=" << s.hostPeak.exchange(0.0f)
 			<< " | master volume=" << s.masterVolume.load()
 			<< " || VST3: outputs=" << s.vstNumOutputs.load() << " channels=" << s.vstOutChannels.load()
-			<< " hostActive=" << s.vstOutHostActive.load() << " silenceFlags from host=" << s.vstOutSilenceFlagsIn.load() << " sent=" << s.vstOutSilenceFlags.load()
+			<< " hostActive=" << s.vstOutHostActive.load() << " silenceFlags=" << s.vstOutSilenceFlagsIn.load()
 			<< " 64bit=" << s.vstSample64.load() << " peak to host=" << s.vstOutPeak.exchange(0.0f);
 		writeLine(ss.str());
 	}
 
-	// first call wins: starts the file and a reporter that writes a status line every 2 seconds for 5 minutes
-	inline void start(const std::string& _file, const std::string& _header)
+	// first call wins: if the folder holds diagnose-aan.txt, starts diagnose.txt and a reporter that writes a status
+	// line every 2 seconds for 5 minutes. Otherwise diagnostics stay off for this host session.
+	inline void start(const std::string& _folder, const std::string& _header)
 	{
 		auto& s = state();
 		{
@@ -124,10 +133,15 @@ namespace synthLib::diag
 			if (s.reporterStarted)
 				return;
 			s.reporterStarted = true;
-			s.file = _file;
+
+			if (!std::ifstream(_folder + "diagnose-aan.txt").good())
+				return;
+
+			s.file = _folder + "diagnose.txt";
 			std::ofstream o(s.file, std::ios::trunc);
 			if (o.is_open())
-				o << "JE8086 diagnose (OS X 10.9 build)\n" << _header << '\n';
+				o << "diagnose (OS X 10.9 build), delete diagnose-aan.txt to turn this off\n" << _header << '\n';
+			s.enabled.store(true, std::memory_order_relaxed);
 		}
 
 		std::thread([]

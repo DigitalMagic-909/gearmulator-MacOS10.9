@@ -23,6 +23,14 @@ aangepast voor 10.9 (zie de fork DigitalMagic-909/gearmulator-MacOS10.9).
 4. Snelheid
    De snelheidstest gaf op de Mac mini 166% van realtime. Tips voor marge:
    project op 44,1 of 48 kHz, buffer 512 of 1024 samples, ASIO-Guard aan.
+   Bij het wisselen van klank piekt de VST-meter even; dat is normaal.
+
+5. Logbestand bij problemen (staat standaard uit)
+   Maak een leeg bestand diagnose-aan.txt in ~/Documents/The Usual Suspects/JE8086/
+     touch ~/Documents/The\ Usual\ Suspects/JE8086/diagnose-aan.txt
+   Start Cubase, laad JE8086 en speel een halve minuut. De plugin schrijft dan de eerste
+   5 minuten diagnose.txt in dezelfde map (alleen meetwaarden, geen klanken of noten).
+   Uitzetten: verwijder diagnose-aan.txt.
 
 Broncode: https://github.com/dsp56300/gearmulator (GPL-3.0), aangepast voor OS X 10.9 /
 x86_64. Roland en JP-8000 zijn handelsmerken van Roland Corporation; dit project is niet

@@ -1,5 +1,5 @@
 diff --git a/modules/juce_audio_plugin_client/juce_audio_plugin_client_VST3.cpp b/modules/juce_audio_plugin_client/juce_audio_plugin_client_VST3.cpp
-index 68ddb8f..47fbec9 100644
+index 68ddb8f..9490815 100644
 --- a/modules/juce_audio_plugin_client/juce_audio_plugin_client_VST3.cpp
 +++ b/modules/juce_audio_plugin_client/juce_audio_plugin_client_VST3.cpp
 @@ -103,6 +103,13 @@ JUCE_BEGIN_NO_SANITIZE ("vptr")
@@ -40,22 +40,13 @@ index 68ddb8f..47fbec9 100644
          // The host is misbehaving! The plugin must be deactivated before setting new arrangements.
          jassert (! active);
  
-@@ -3679,6 +3695,40 @@ public:
+@@ -3679,6 +3695,31 @@ public:
              if      (processSetup.symbolicSampleSize == Vst::kSample32) processAudio<float>  (data);
              else if (processSetup.symbolicSampleSize == Vst::kSample64) processAudio<double> (data);
              else jassertfalse;
 +
-+            // MAC-LEGACY: the plugin always writes its outputs, tell the host they are not silent. JUCE left the
-+            // flags as the host passed them in, and a host that marks them silent beforehand ignores the output.
 +           #ifdef TUS_MAC_LEGACY_DIAG
-+            if (data.numOutputs > 0 && data.outputs != nullptr)
-+                synthLib::diag::state().vstOutSilenceFlagsIn.store ((int) data.outputs[0].silenceFlags, std::memory_order_relaxed);
-+           #endif
-+            if (data.outputs != nullptr)
-+                for (Steinberg::int32 i = 0; i < data.numOutputs; ++i)
-+                    data.outputs[i].silenceFlags = 0;
-+
-+           #ifdef TUS_MAC_LEGACY_DIAG
++            if (synthLib::diag::enabled())
 +            {
 +                auto& d = synthLib::diag::state();
 +                d.vstNumOutputs.store ((int) data.numOutputs, std::memory_order_relaxed);
@@ -66,7 +57,7 @@ index 68ddb8f..47fbec9 100644
 +                {
 +                    auto& bus = data.outputs[0];
 +                    d.vstOutChannels.store ((int) bus.numChannels, std::memory_order_relaxed);
-+                    d.vstOutSilenceFlags.store ((int) bus.silenceFlags, std::memory_order_relaxed);
++                    d.vstOutSilenceFlagsIn.store ((int) bus.silenceFlags, std::memory_order_relaxed);
 +
 +                    if (processSetup.symbolicSampleSize == Vst::kSample32 && bus.channelBuffers32 != nullptr)
 +                    {
@@ -81,25 +72,6 @@ index 68ddb8f..47fbec9 100644
          }
  
          if (auto* changes = data.outputParameterChanges)
-diff --git a/modules/juce_audio_processors/format_types/juce_VST3Common.h b/modules/juce_audio_processors/format_types/juce_VST3Common.h
-index 2e05413..85dd8c2 100644
---- a/modules/juce_audio_processors/format_types/juce_VST3Common.h
-+++ b/modules/juce_audio_processors/format_types/juce_VST3Common.h
-@@ -890,7 +890,14 @@ public:
-             if (pair.map.empty())
-             {
-                 for (auto i = 0; i < processor.getBusCount (pair.isInput); ++i)
-+                {
-                     pair.map.emplace_back (*processor.getBus (pair.isInput, i));
-+
-+                    // MAC-LEGACY: we report kDefaultActive for buses enabled by default, and some hosts (Cubase 7.5)
-+                    // never call activateBus() for those. Without this the output was never copied to the host.
-+                    if (! pair.isInput)
-+                        pair.map.back().setHostActive (processor.getBus (pair.isInput, i)->isEnabledByDefault());
-+                }
-             }
-             else
-             {
 diff --git a/modules/juce_opengl/native/juce_OpenGL_mac.h b/modules/juce_opengl/native/juce_OpenGL_mac.h
 index fb614ca..7f89f7c 100644
 --- a/modules/juce_opengl/native/juce_OpenGL_mac.h
