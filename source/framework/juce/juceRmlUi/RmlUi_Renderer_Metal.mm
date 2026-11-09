@@ -2646,6 +2646,14 @@ void RenderInterface_Metal::ResetPipeline()
 
 bool RmlMetal::IsSupported()
 {
+	// MAC-LEGACY: Metal exists from macOS 10.11 on. The framework is weak-linked, so on OS X 10.9/10.10
+	// MTLCreateSystemDefaultDevice is a null pointer and calling it crashed the host when the editor opened.
+	// Without Metal the component falls back to its OpenGL renderer.
+	if (@available(macOS 10.11, *)) {} else
+		return false;
+	if (&MTLCreateSystemDefaultDevice == nullptr)
+		return false;
+
 	id<MTLDevice> device = MTLCreateSystemDefaultDevice();
 	const bool supported = device != nil;
 	[device release];

@@ -116,12 +116,19 @@ for b in bins:
             continue
         if m.group(1):                     # weak references may be missing - but each one must be guarded
             inst = by_short.get(m.group(3))
+            if inst and inst in weak_libs and exports(inst) is None:
+                weak_missing.append(f"{m.group(2)} ({m.group(3)}, weak framework absent on this macOS)")
+                continue
             ex = exports(inst) if inst and not inst.startswith("@") else None
             if inst and inst not in weak_libs and ex is not None and m.group(2) not in ex:
                 weak_missing.append(f"{m.group(2)} ({m.group(3)})")
             continue
         sym, lib = m.group(2), m.group(3)
         inst = by_short.get(lib)
+        if inst is not None and inst in weak_libs and exports(inst) is None:
+            # the whole framework is weak-linked and absent on this macOS: every use must be guarded
+            weak_missing.append(f"{sym} ({lib}, weak framework absent on this macOS)")
+            continue
         if inst is None or inst in weak_libs or inst.startswith("@"):
             continue
         ex = exports(inst)
