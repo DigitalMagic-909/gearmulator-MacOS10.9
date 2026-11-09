@@ -9,6 +9,7 @@
 #include "dsp56kBase/logging.h"
 
 #include "synthLib/boardThread.h"
+#include "synthLib/macLegacyDiag.h"
 
 #include <algorithm>
 #include <cmath>
@@ -55,6 +56,7 @@ namespace jeLib
 				LOG("Failed to write " << ramDataFilename);
 		}
 
+		TUS_DIAG("jeLib::Device: rom " << romSize << " bytes, ram file " << ramDataFilename);
 		m_je8086.reset(new Je8086(_params.romData, ram));
 
 		m_thread.reset(new synthLib::BoardThread<Je8086>(*m_je8086, "JE8086"));
@@ -222,6 +224,19 @@ namespace jeLib
 		}
 
 		const auto* frames = m_thread->process(static_cast<uint32_t>(_samples), getExtraLatencySamples(), m_midiIn, m_midiOut, input);
+
+#ifdef TUS_MAC_LEGACY_DIAG
+		{
+			auto& d = synthLib::diag::state();
+			d.boardBlocks.fetch_add(1, std::memory_order_relaxed);
+			d.masterVolume.store(m_masterVolume, std::memory_order_relaxed);
+			for (size_t i=0; i<_samples; ++i)
+			{
+				synthLib::diag::peak(d.boardPeak, dspWordToFloat(frames[i].first));
+				synthLib::diag::peak(d.boardPeak, dspWordToFloat(frames[i].second));
+			}
+		}
+#endif
 
 		for (size_t i=0; i<_samples; ++i)
 		{

@@ -24,6 +24,7 @@
 #include "synthLib/midiBufferParser.h"
 #include "synthLib/midiToSysex.h"
 #include "synthLib/romLoader.h"
+#include "synthLib/macLegacyDiag.h"
 #include "synthLib/wavWriter.h"
 
 #include "dsp56kBase/fastmath.h"
@@ -59,6 +60,18 @@ namespace pluginLib
 		synthLib::RomLoader::addSearchPath(getPublicRomFolder());
 		synthLib::RomLoader::addSearchPath(synthLib::getModulePath(true));
 		synthLib::RomLoader::addSearchPath(synthLib::getModulePath(false));
+
+#ifdef TUS_MAC_LEGACY_DIAG
+		{
+			std::ostringstream h;
+			h << "host: " << juce::PluginHostType::getHostPath() << "\nrom folder: " << getPublicRomFolder() << "\nfiles in rom folder:";
+			std::vector<std::string> entries;
+			baseLib::filesystem::getDirectoryEntries(entries, getPublicRomFolder());
+			for (const auto& e : entries)
+				h << "\n  " << e << "  (" << baseLib::filesystem::getFileSize(e) << " bytes)";
+			synthLib::diag::start(getDataFolder() + "diagnose.txt", h.str());
+		}
+#endif
 	}
 
 	Processor::~Processor()
@@ -231,10 +244,12 @@ namespace pluginLib
 			m_deviceVoiceExpansion = m_voiceExpansion;
 			if(!m_device->isValid())
 				throw synthLib::DeviceException(synthLib::DeviceError::Unknown, "Device initialization failed");
+			TUS_DIAG("device created OK, device samplerate " << m_device->getSamplerate());
 		}
 		catch(const synthLib::DeviceException& e)
 		{
 			LOG("Failed to create device: " << e.what());
+			TUS_DIAG("FAILED to create device: " << e.what());
 
 			// Juce loads the LV2/VST3 versions of the plugin as part of the build process, if we open a message box in this case, the build process gets stuck
 			const auto host = juce::PluginHostType::getHostPath();
@@ -994,6 +1009,9 @@ namespace pluginLib
 			}
 
 			ev.offset = std::max(0, metadata.samplePosition);
+#ifdef TUS_MAC_LEGACY_DIAG
+			synthLib::diag::state().midiIn.fetch_add(1, std::memory_order_relaxed);
+#endif
 
 			addMidiEvent(ev);
 		}
@@ -1031,7 +1049,32 @@ namespace pluginLib
 			}
 		}
 
+#ifdef TUS_MAC_LEGACY_DIAG
+		{
+			auto& d = synthLib::diag::state();
+			d.blocks.fetch_add(1, std::memory_order_relaxed);
+			d.samples.fetch_add(static_cast<uint64_t>(numSamples), std::memory_order_relaxed);
+			d.blockSize.store(numSamples, std::memory_order_relaxed);
+			d.hostRate.store(static_cast<int>(getSampleRate()), std::memory_order_relaxed);
+			d.inChannels.store(totalNumInputChannels, std::memory_order_relaxed);
+			d.outChannels.store(totalNumOutputChannels, std::memory_order_relaxed);
+			d.bufferChannels.store(buffer.getNumChannels(), std::memory_order_relaxed);
+			d.mapped.store(mapped ? 1 : 0, std::memory_order_relaxed);
+			d.latency.store(getLatencySamples(), std::memory_order_relaxed);
+			if (!getPlugin().isValid())
+				d.invalidBlocks.fetch_add(1, std::memory_order_relaxed);
+		}
+#endif
 		getPlugin().process(inputs, outputs, numSamples, bpm, ppqPos, isPlaying, hasPpqPosition, loop);
+#ifdef TUS_MAC_LEGACY_DIAG
+		for (size_t o = 0; o < 2 && o < outputs.size(); ++o)
+		{
+			if (!outputs[o])
+				continue;
+			for (int i = 0; i < numSamples; ++i)
+				synthLib::diag::peak(synthLib::diag::state().devicePeak, outputs[o][i]);
+		}
+#endif
 
 		// Both checks are plain atomic loads, cheap enough per block. The work they stand for
 		// belongs to the message thread, see handleAsyncUpdate().
@@ -1052,6 +1095,14 @@ namespace pluginLib
 			}
 		}
 
+#ifdef TUS_MAC_LEGACY_DIAG
+		for (int c = 0; c < totalNumOutputChannels; ++c)
+		{
+			const auto* r = buffer.getReadPointer(c);
+			for (int i = 0; i < numSamples; ++i)
+				synthLib::diag::peak(synthLib::diag::state().hostPeak, r[i]);
+		}
+#endif
 		captureAudioBlock(buffer, numSamples);
 		m_outputLevels.process(buffer, getTotalNumOutputChannels(), numSamples, getSampleRate());
 
