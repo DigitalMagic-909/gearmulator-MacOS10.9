@@ -1,6 +1,7 @@
 name: CMake
 
-on: [push, pull_request]
+# fork: manual only (the macOS 10.9 workflow is macos-legacy-je8086.yml)
+on: [workflow_dispatch]
 
 env:
   BUILD_TYPE: Release

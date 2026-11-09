@@ -30,6 +30,21 @@ endif()
 project(gearmulator VERSION 2.2.28)
 
 include(source/cmake/base.cmake)
+
+# ----------------- MAC-LEGACY: Intel Macs on OS X 10.9 Mavericks (fork DigitalMagic-909/gearmulator-MacOS10.9)
+#   -DCMAKE_OSX_DEPLOYMENT_TARGET=10.9 -DCMAKE_OSX_ARCHITECTURES=x86_64 [-DTUS_X64_MARCH=ivybridge]
+# The DSP library needs packaging/macos-legacy/dsp56300-macos-legacy.patch (weak __ulock, guarded QoS).
+set(TUS_X64_MARCH "" CACHE STRING "x86_64: optional -march value, e.g. ivybridge (empty = compiler default)")
+if(TUS_X64_MARCH AND NOT MSVC)
+	add_compile_options(-march=${TUS_X64_MARCH})
+endif()
+set(TUS_LEGACY_ALIGNED_NEW "")
+if(APPLE AND CMAKE_OSX_DEPLOYMENT_TARGET AND CMAKE_OSX_DEPLOYMENT_TARGET VERSION_LESS 10.14)
+	# libc++ of macOS < 10.14 has no aligned operator new/delete: our own replacements are linked into every
+	# binary below, and an explicit -faligned-allocation keeps Apple Clang from refusing aligned new
+	add_compile_options("$<$<COMPILE_LANGUAGE:CXX,OBJCXX>:-faligned-allocation>")
+	set(TUS_LEGACY_ALIGNED_NEW ${CMAKE_SOURCE_DIR}/source/macos-legacy/aligned_new_compat.cpp)
+endif()
 include(CTest)
 
 option(${PROJECT_NAME}_BUILD_JUCEPLUGIN "Build Juce plugin" on)
@@ -92,6 +107,15 @@ set(CPACK_RPM_PACKAGE_DESCRIPTION ${CPACK_PACKAGE_DESCRIPTION_SUMMARY})
 
 add_subdirectory(source)
 add_subdirectory(doc)
+
+# MAC-LEGACY: aligned new/delete replacements into each binary (see above)
+if(TUS_LEGACY_ALIGNED_NEW)
+	foreach(t JE8086TestConsole)
+		if(TARGET ${t})
+			target_sources(${t} PRIVATE ${TUS_LEGACY_ALIGNED_NEW})
+		endif()
+	endforeach()
+endif()
 
 # ----------------- CPack parameters based on source
 

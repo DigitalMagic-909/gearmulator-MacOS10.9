@@ -1,0 +1,124 @@
+diff --git a/source/dsp56kBase/conditionvariable.cpp b/source/dsp56kBase/conditionvariable.cpp
+index 1f61e68..a72f166 100644
+--- a/source/dsp56kBase/conditionvariable.cpp
++++ b/source/dsp56kBase/conditionvariable.cpp
+@@ -83,8 +83,10 @@ namespace dsp56k
+ #ifdef __APPLE__
+ // Private Darwin futex, available since 10.12 and used internally by libc++/libdispatch. The public
+ // os_sync_wait_on_address requires macOS 14.4, above our deployment target (11.0).
+-extern "C" int __ulock_wait(uint32_t operation, void* addr, uint64_t value, uint32_t timeout_us);
+-extern "C" int __ulock_wake(uint32_t operation, void* addr, uint64_t wake_value);
++// MAC-LEGACY: weak, so a binary built for OS X 10.9 - 10.11 (which lack them) still loads; there
++// ulockAvailable() is false and the mutex/condition-variable fallback below is used.
++extern "C" int __ulock_wait(uint32_t operation, void* addr, uint64_t value, uint32_t timeout_us) __attribute__((weak_import));
++extern "C" int __ulock_wake(uint32_t operation, void* addr, uint64_t wake_value) __attribute__((weak_import));
+ 
+ namespace dsp56k
+ {
+@@ -93,16 +95,34 @@ namespace dsp56k
+ 		constexpr uint32_t UL_COMPARE_AND_WAIT	= 1;			// 32-bit compare-and-wait on the futex word
+ 		constexpr uint32_t ULF_WAKE_ALL			= 0x00000100;
+ 		constexpr uint32_t ULF_NO_ERRNO			= 0x01000000;	// return -errno instead of touching errno
++
++		bool ulockAvailable()
++		{
++			static const bool available = &__ulock_wait != nullptr && &__ulock_wake != nullptr;
++			return available;
++		}
+ 	}
+ 
+ 	void ConditionVariable::notify_one()
+ 	{
++		if (!ulockAvailable())
++		{
++			{ std::lock_guard<std::mutex> l(m_fallbackMutex); m_seq.fetch_add(1, std::memory_order_relaxed); }
++			m_fallbackCv.notify_one();
++			return;
++		}
+ 		m_seq.fetch_add(1, std::memory_order_relaxed);
+ 		__ulock_wake(UL_COMPARE_AND_WAIT | ULF_NO_ERRNO, &m_seq, 0);
+ 	}
+ 
+ 	void ConditionVariable::notify_all()
+ 	{
++		if (!ulockAvailable())
++		{
++			{ std::lock_guard<std::mutex> l(m_fallbackMutex); m_seq.fetch_add(1, std::memory_order_relaxed); }
++			m_fallbackCv.notify_all();
++			return;
++		}
+ 		m_seq.fetch_add(1, std::memory_order_relaxed);
+ 		__ulock_wake(UL_COMPARE_AND_WAIT | ULF_WAKE_ALL | ULF_NO_ERRNO, &m_seq, 0);
+ 	}
+@@ -111,6 +131,16 @@ namespace dsp56k
+ 	{
+ 		const uint32_t old = m_seq.load(std::memory_order_relaxed);
+ 		_lock.unlock();
++		if (!ulockAvailable())
++		{
++			// the notifier bumps m_seq under m_fallbackMutex, so a notify between the unlock above and this
++			// wait is seen by the predicate - no lost wakeup, as with the futex
++			std::unique_lock<std::mutex> l(m_fallbackMutex);
++			m_fallbackCv.wait(l, [&] { return m_seq.load(std::memory_order_relaxed) != old; });
++			l.unlock();
++			_lock.lock();
++			return;
++		}
+ 		// Block while the futex word is still 'old'. If a notify already bumped it we return immediately,
+ 		// so a wakeup cannot be lost in the window between unlock and wait (the caller re-checks its predicate).
+ 		__ulock_wait(UL_COMPARE_AND_WAIT | ULF_NO_ERRNO, &m_seq, old, 0);
+diff --git a/source/dsp56kBase/conditionvariable.h b/source/dsp56kBase/conditionvariable.h
+index 707b2ae..cbf92c4 100644
+--- a/source/dsp56kBase/conditionvariable.h
++++ b/source/dsp56kBase/conditionvariable.h
+@@ -86,6 +86,11 @@ namespace dsp56k
+ 
+ 	private:
+ 		std::atomic<uint32_t> m_seq{0};	// futex word; every notify bumps it, wait blocks while it is unchanged
++
++		// MAC-LEGACY: __ulock_* exist since macOS 10.12. They are weak-imported; on older systems
++		// (OS X 10.9 - 10.11) the same sequence word is waited on with this mutex/condition variable instead.
++		std::mutex m_fallbackMutex;
++		std::condition_variable m_fallbackCv;
+ 	};
+ #else
+ 	using ConditionVariable = std::condition_variable;
+diff --git a/source/dsp56kBase/threadtools.cpp b/source/dsp56kBase/threadtools.cpp
+index da83b38..2bb3285 100644
+--- a/source/dsp56kBase/threadtools.cpp
++++ b/source/dsp56kBase/threadtools.cpp
+@@ -128,7 +128,11 @@ namespace dsp56k
+ 		default: return false;
+ 		}
+ 
+-		const auto result = pthread_set_qos_class_self_np(qosClass, 0);
++		// MAC-LEGACY: QoS classes exist since macOS 10.10 (the symbol is weak on older targets). On OS X 10.9
++		// the Highest priority still gets the realtime time-constraint policy below.
++		int result = ENOTSUP;
++		if (__builtin_available(macOS 10.10, *))
++			result = pthread_set_qos_class_self_np(qosClass, 0);
+ 		if (result != 0)
+ 			LOG("Failed to set thread QOS class to " << qosClass << ": " << strerror(result));
+ 
+@@ -227,7 +231,8 @@ namespace dsp56k
+ 	{
+ #ifdef __APPLE__
+ 		qos_class_t qos = QOS_CLASS_UNSPECIFIED;
+-		pthread_get_qos_class_np(pthread_self(), &qos, nullptr);
++		if (__builtin_available(macOS 10.10, *))	// MAC-LEGACY
++			pthread_get_qos_class_np(pthread_self(), &qos, nullptr);
+ 		return static_cast<uint32_t>(qos);
+ #else
+ 		return 0;
+@@ -239,7 +244,10 @@ namespace dsp56k
+ #ifdef __APPLE__
+ 		const auto qos = static_cast<qos_class_t>(_raw);
+ 		if(qos != QOS_CLASS_UNSPECIFIED)
+-			pthread_set_qos_class_self_np(qos, 0);
++		{
++			if (__builtin_available(macOS 10.10, *))	// MAC-LEGACY
++				pthread_set_qos_class_self_np(qos, 0);
++		}
+ #else
+ 		(void)_raw;
+ #endif
