@@ -45,6 +45,10 @@ if(APPLE AND CMAKE_OSX_DEPLOYMENT_TARGET AND CMAKE_OSX_DEPLOYMENT_TARGET VERSION
 	add_compile_options("$<$<COMPILE_LANGUAGE:CXX,OBJCXX>:-faligned-allocation>")
 	set(TUS_LEGACY_ALIGNED_NEW ${CMAKE_SOURCE_DIR}/source/macos-legacy/aligned_new_compat.cpp)
 endif()
+if(APPLE AND CMAKE_OSX_DEPLOYMENT_TARGET AND CMAKE_OSX_DEPLOYMENT_TARGET VERSION_LESS 10.13)
+	# std::bad_variant_access (vtable/typeinfo) is in the system libc++ from macOS 10.13 on
+	list(APPEND TUS_LEGACY_ALIGNED_NEW ${CMAKE_SOURCE_DIR}/source/macos-legacy/libcxx_legacy_compat.cpp)
+endif()
 include(CTest)
 
 option(${PROJECT_NAME}_BUILD_JUCEPLUGIN "Build Juce plugin" on)
@@ -108,7 +112,7 @@ set(CPACK_RPM_PACKAGE_DESCRIPTION ${CPACK_PACKAGE_DESCRIPTION_SUMMARY})
 add_subdirectory(source)
 add_subdirectory(doc)
 
-# MAC-LEGACY: aligned new/delete replacements into each binary (see above)
+# MAC-LEGACY: aligned new/delete and libc++ replacements into each binary (see above)
 if(TUS_LEGACY_ALIGNED_NEW)
 	foreach(t JE8086TestConsole jeJucePlugin_VST3 jeJucePlugin_AU jeJucePlugin_Standalone)
 		if(TARGET ${t})
