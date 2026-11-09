@@ -12,11 +12,12 @@
 
 #include <variant>
 
-_LIBCPP_BEGIN_NAMESPACE_STD
-
-const char* bad_variant_access::what() const noexcept
+// libc++ declares it directly in namespace std, outside its versioned __1 namespace (the imported symbols are
+// __ZTISt18bad_variant_access / __ZTVSt18bad_variant_access)
+namespace std
 {
-	return "bad_variant_access";
+	const char* bad_variant_access::what() const noexcept
+	{
+		return "bad_variant_access";
+	}
 }
-
-_LIBCPP_END_NAMESPACE_STD
