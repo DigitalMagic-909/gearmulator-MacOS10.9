@@ -76,6 +76,7 @@ jobs:
           mkdir -p dist/JE8086-VST3-macOS10.9
           cp -R "$VST" dist/JE8086-VST3-macOS10.9/
           cp packaging/macos-legacy/LEESMIJ-JE8086-VST3.txt dist/JE8086-VST3-macOS10.9/LEESMIJ.txt
+          cp packaging/macos-legacy/CHANGELOG-macOS10.9.txt dist/JE8086-VST3-macOS10.9/CHANGELOG.txt
           cd dist && ditto -c -k --keepParent JE8086-VST3-macOS10.9 ../JE8086-VST3-macOS10.9.zip
 
       - uses: actions/upload-artifact@v4

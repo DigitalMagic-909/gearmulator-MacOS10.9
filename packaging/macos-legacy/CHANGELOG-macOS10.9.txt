@@ -1,0 +1,54 @@
+JE-8086 VST3 for OS X 10.9 Mavericks (Intel) - changelog
+=========================================================
+
+Unofficial build of JE-8086 from The Usual Suspects (gearmulator 2.2.28), adapted to run on
+OS X 10.9.5 and tested on a Mac mini late 2012 (i7 Ivy Bridge, Intel HD 4000) with Cubase 7.5.
+Fork: https://github.com/DigitalMagic-909/gearmulator-MacOS10.9
+The official release requires macOS 10.12/10.13. Everything below only concerns this 10.9 build.
+
+
+2026-11-09 - first working version
+-----------------------------------
+
+Fixed:
+- The plugin would not load on OS X 10.9 because it used system functions that only exist
+  in newer macOS versions:
+  - std::shared_mutex (macOS 10.12+), used by the patch manager. It is replaced by an
+    equivalent built into the plugin.
+  - aligned memory allocation (macOS 10.14+) and std::bad_variant_access (macOS 10.13+).
+    These are now built into the plugin.
+  - __ulock_wait/__ulock_wake (macOS 10.12+), used by the DSP emulator for thread
+    synchronisation. They now fall back to a mutex and condition variable on 10.9.
+  - thread QoS classes (macOS 10.10+). They are skipped on 10.9; real-time priority still
+    applies.
+- Cubase crashed when opening the plugin window: the user interface tried to use Metal,
+  which does not exist on OS X 10.9/10.10. It now uses OpenGL there.
+- Cubase crashed again when opening the plugin window: on 10.9, JUCE requested the old
+  OpenGL 2.1 instead of OpenGL 4.1, so the user interface shaders failed. On 10.9 the plugin
+  now requests the OpenGL core profile (4.1 on Intel HD 4000). If the modern renderer
+  cannot start anyway, it falls back to the simple renderer instead of crashing.
+- No sound in Cubase 7.5: the plugin produced audio, but Cubase 7.5 muted it after the
+  plugin reported its latency right after being inserted. It only played after the project
+  was saved and reopened. The plugin no longer sends that latency notification; Cubase asks
+  for the latency itself when it activates the plugin.
+
+Added:
+- Diagnostics log for troubleshooting, off by default. To turn it on, create an empty file
+  ~/Documents/The Usual Suspects/JE8086/diagnose-aan.txt. The plugin then writes
+  diagnose.txt in that folder during the first 5 minutes after loading. It contains only
+  technical measurements (ROM files found, sample rate, MIDI event count, audio levels), no
+  patches, settings or notes. To turn it off, delete diagnose-aan.txt.
+- Speed test for the emulator (JE8086TestConsole). It reached 166% of real time on the
+  Mac mini 2012.
+
+Build:
+- Intel 64-bit only (x86_64), optimised for Ivy Bridge processors; minimum OS X 10.9.
+- VST3 only, no AU/VST2/CLAP/standalone.
+- Every build is checked against the OS X 10.9 SDK for functions that do not exist on 10.9.
+
+Known:
+- Changing presets causes a short spike on the Cubase VST performance meter and a brief
+  glitch in the sound, while the emulator prepares the new sound.
+- JP-8000 performances that use the arpeggiator with Hold keep playing after the keys are
+  released (MIDI reset does not stop them). That is how the JP-8000 behaves; switch the
+  arpeggiator or Hold off.
