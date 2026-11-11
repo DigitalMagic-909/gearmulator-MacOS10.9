@@ -36,6 +36,7 @@ namespace jucePluginEditorLib
 		void setSizeIfDifferent(const juce::Point<int>& _size);
 
 		juce::Point<int> getSizeForScale(float _percent) const;
+		float limitScaleForLegacyMac(float _percent) const;
 		juce::Point<int> getSizeForSkinScale(float _scale) const;
 		bool isMinimumSize(int _width, int _height) const;
 

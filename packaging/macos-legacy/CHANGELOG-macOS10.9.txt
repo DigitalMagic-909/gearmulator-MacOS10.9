@@ -11,6 +11,9 @@ The official release requires macOS 10.12/10.13. Everything below only concerns 
 ----------
 
 Fixed:
+- Cubase crashed when the plugin window was set to 200%, and since the plugin remembers the
+  window size, again every time the window opened. The window is now kept within the size of
+  the screen; a larger setting is reduced to the largest size that fits.
 - Cubase could crash when a project was closed within 5 minutes of opening it. A background
   thread of the diagnostics log kept running after Cubase had unloaded the plugin. The thread
   now stops when the plugin is unloaded. (The log itself was always on in the test builds of

@@ -1,5 +1,8 @@
 #include "pluginEditorWindow.h"
 
+#include <algorithm>
+#include <cmath>
+
 #include "pluginEditor.h"
 #include "pluginEditorState.h"
 
@@ -142,10 +145,34 @@ int EditorWindow::getControlParameterIndex(Component& _component)
 	return AudioProcessorEditor::getControlParameterIndex(_component);
 }
 
-void EditorWindow::setGuiScale(const float _percent)
+// MAC-LEGACY: on OS X 10.9 with Intel HD 4000, Cubase 7.5 crashed when the window was set to 200%, and since the scale
+// is saved in the config, again every time the editor opened. Builds for OS X < 10.12 keep the window inside the
+// screen it opens on, which also keeps the OpenGL framebuffers of the renderer within what such old GPUs handle.
+float EditorWindow::limitScaleForLegacyMac(const float _percent) const
+{
+#if defined(__APPLE__) && defined(__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__) && __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 101200
+	const auto* display = juce::Desktop::getInstance().getDisplays().getPrimaryDisplay();
+	if (!display)
+		return _percent;
+
+	const auto area = display->userArea;
+	const auto size = getSizeForScale(_percent);
+	if (size.x <= 0 || size.y <= 0 || (size.x <= area.getWidth() && size.y <= area.getHeight()))
+		return _percent;
+
+	const auto fit = std::min(static_cast<float>(area.getWidth()) / static_cast<float>(size.x), static_cast<float>(area.getHeight()) / static_cast<float>(size.y));
+	return std::max(25.0f, std::floor(_percent * fit));
+#else
+	return _percent;
+#endif
+}
+
+void EditorWindow::setGuiScale(float _percent)
 {
 	if(!m_state.getWidth() || !m_state.getHeight())
 		return;
+
+	_percent = limitScaleForLegacyMac(_percent);
 
 	m_skinScale = _percent / 100.0f * m_state.getRootScale();
 
@@ -194,7 +221,7 @@ void EditorWindow::setUiRoot(juce::Component* _component)
 		return;
 
 	// versions before this one did save the minimum, and a config that holds it would keep every window at the minimum
-	auto scale = static_cast<float>(m_config.getDoubleValue("scale", 100));
+	auto scale = limitScaleForLegacyMac(static_cast<float>(m_config.getDoubleValue("scale", 100)));
 
 	if (isFreeWindowMode())
 	{
