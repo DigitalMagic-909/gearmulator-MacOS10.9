@@ -7,6 +7,16 @@ Fork: https://github.com/DigitalMagic-909/gearmulator-MacOS10.9
 The official release requires macOS 10.12/10.13. Everything below only concerns this 10.9 build.
 
 
+2026-11-11
+----------
+
+Fixed:
+- Cubase could crash when a project was closed within 5 minutes of opening it. A background
+  thread of the diagnostics log kept running after Cubase had unloaded the plugin. The thread
+  now stops when the plugin is unloaded. (The log itself was always on in the test builds of
+  2026-11-09 and is off by default since then.)
+
+
 2026-11-09 - first working version
 -----------------------------------
 

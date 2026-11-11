@@ -14,6 +14,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <cmath>
 #include <cstdint>
 #include <ctime>
@@ -32,6 +33,29 @@ namespace synthLib::diag
 		std::string file;
 		bool reporterStarted = false;
 		std::atomic<bool> enabled{false};
+
+		// The reporter thread must never outlive the plugin binary: a host unloads the bundle when the last
+		// instance is gone, and a detached thread sleeping in here then wakes up in unmapped code (crash on closing
+		// a Cubase 7.5 project). This static object is destroyed when the bundle is unloaded, so stop and join here.
+		std::thread reporter;
+		std::mutex stopMutex;
+		std::condition_variable stopCv;
+		bool stop = false;
+
+		State() = default;
+		State(const State&) = delete;
+		State& operator=(const State&) = delete;
+
+		~State()
+		{
+			{
+				std::lock_guard lock(stopMutex);
+				stop = true;
+			}
+			stopCv.notify_all();
+			if (reporter.joinable())
+				reporter.join();
+		}
 
 		std::atomic<uint64_t> blocks{0};
 		std::atomic<uint64_t> samples{0};
@@ -144,15 +168,20 @@ namespace synthLib::diag
 			s.enabled.store(true, std::memory_order_relaxed);
 		}
 
-		std::thread([]
+		std::lock_guard lock(s.mutex);
+		s.reporter = std::thread([&s]
 		{
 			for (int i = 0; i < 150; ++i)
 			{
-				std::this_thread::sleep_for(std::chrono::seconds(2));
+				{
+					std::unique_lock lock(s.stopMutex);
+					if (s.stopCv.wait_for(lock, std::chrono::seconds(2), [&s] { return s.stop; }))
+						return;
+				}
 				report();
 			}
 			writeLine("reporter stopped after 5 minutes");
-		}).detach();
+		});
 	}
 }
 
